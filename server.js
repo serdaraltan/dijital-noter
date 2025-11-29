@@ -10,7 +10,7 @@ const upload = multer({ dest: 'uploads/' });
 // --- AYARLAR ---
 const PRIVATE_KEY = "0xb5dc9e82563aa7f44295af9d8f0e49fa28cc984d595d1d6abb0cca6409bf29f8"; 
 const PROVIDER_URL = "https://rpc-amoy.polygon.technology/";
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // --- FONKSİYONLAR ---
 function hashHesapla(dosyaYolu) {
