@@ -10,6 +10,7 @@ const app = express();
 const upload = multer({ dest: 'uploads/' });
 
 // --- GÜVENLİK ---
+// Private Key SADECE Render kasasından okunur.
 const PRIVATE_KEY = process.env.PRIVATE_KEY; 
 const PROVIDER_URL = process.env.RPC_URL || "https://polygon-rpc.com/";
 const PORT = process.env.PORT || 3001;
@@ -37,7 +38,7 @@ async function stampToBlockchain(hash) {
     return tx.hash;
 }
 
-// --- HTML ARAYÜZÜ (FAQ ve How-To Geri Geldi) ---
+// --- HTML ARAYÜZÜ ---
 const htmlTemplate = (content) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -50,43 +51,30 @@ const htmlTemplate = (content) => `
         :root { --primary: #3b82f6; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --text-muted: #94a3b8; --success: #34d399; }
         body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
         .container { max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
-        
-        /* Loading Overlay */
         #loadingOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; text-align: center; }
         .spinner { width: 60px; height: 60px; border: 6px solid #334155; border-top: 6px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1.5rem; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Styles */
         .header { text-align: center; margin-bottom: 3rem; padding-top: 2rem; }
         .logo { font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .subtitle { color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 1rem auto; }
         .card { background: var(--card); padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155; text-align: center; }
-        
         .upload-area { border: 2px dashed #475569; border-radius: 0.75rem; padding: 3rem 1.5rem; transition: 0.3s; cursor: pointer; position: relative; background: rgba(15, 23, 42, 0.3); }
         .upload-area:hover { border-color: var(--primary); background: rgba(59, 130, 246, 0.1); }
         .upload-area.file-selected { border-color: var(--success); background: rgba(52, 211, 153, 0.1); }
-        
         input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-        
         button.cta { background: var(--primary); color: white; border: none; padding: 1rem 2rem; border-radius: 0.5rem; font-size: 1.1rem; font-weight: 600; margin-top: 1.5rem; cursor: pointer; width: 100%; transition: 0.2s; }
         button.cta:hover { background: #2563eb; transform: translateY(-2px); }
         button.download-btn { background: #f59e0b; color: #fff; margin-top: 1rem; }
         button.download-btn:hover { background: #d97706; }
-
-        /* Result Styles */
         .hash-display { background: #020617; padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem; color: #cbd5e1; word-break: break-all; border: 1px solid #475569; margin: 0.5rem 0; }
         .success-badge { display: inline-block; padding: 0.25rem 1rem; background: #065f46; color: #34d399; border-radius: 99px; font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem; }
-
-        /* Sections (How-to & FAQ) */
         .section-title { margin-top: 4rem; font-size: 1.5rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #e2e8f0; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
         .info-box { background: rgba(30, 41, 59, 0.5); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid #334155; }
         .info-box h3 { margin-top: 0; color: var(--primary); font-size: 1.1rem; }
-        
         .faq-item { margin-bottom: 1.5rem; }
         .faq-question { font-weight: 600; color: #e2e8f0; margin-bottom: 0.25rem; }
         .faq-answer { color: var(--text-muted); font-size: 0.95rem; }
-
         footer { text-align: center; margin-top: 4rem; color: #475569; font-size: 0.85rem; padding-bottom: 2rem; }
         a { color: var(--primary); text-decoration: none; }
     </style>
@@ -211,48 +199,46 @@ app.post('/seal', upload.single('document'), async (req, res) => {
     }
 });
 
-// --- PDF DÜZENLEMELERİ ---
+// --- FİNAL PDF TASARIMI ---
 app.get('/certificate', (req, res) => {
     const { hash, tx, name } = req.query;
     if(!hash || !tx) return res.send("Missing data.");
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4' }); // A4 Boyutunu netleştirdik
+    // autoFirstPage: false (Sayfa kontrolü bizde olsun)
+    const doc = new PDFDocument({ margin: 50, size: 'A4' }); 
     const fileName = name || "Document";
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=Certificate.pdf`);
     doc.pipe(res);
 
-    // Çerçeveler
-    doc.rect(20, 20, 555, 800).lineWidth(3).strokeColor('#C5A059').stroke(); // Altın
-    doc.rect(25, 25, 545, 790).lineWidth(1).strokeColor('#000000').stroke(); // Siyah
+    // ÇERÇEVELERİ BİRAZ KÜÇÜLTELİM Kİ TAŞMASIN (Safe Zone)
+    // A4 Yükseklik: ~841 px. Biz 780'e kadar sınır çizelim.
+    doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); // Altın
+    doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); // Siyah
 
-    // Başlık
+    // BAŞLIK
     doc.moveDown(2);
     doc.font('Helvetica-Bold').fontSize(30).fillColor('#1a1a1a').text('CERTIFICATE', { align: 'center' });
     doc.fontSize(12).fillColor('#C5A059').text('OF BLOCKCHAIN TIMESTAMP', { align: 'center', characterSpacing: 2 });
     
     doc.moveDown(2);
 
-    // Açıklama Metni (TAM ORTALANDI)
-    // text metoduna width verip, x koordinatını da ortalayarak sağa kaymayı engelliyoruz.
-    // A4 genişliği ~595pt. 400pt genişlik verirsek, (595-400)/2 = ~97 x konumu olur.
+    // ORTALANMIŞ AÇIKLAMA (Koordinatlı yerleşim)
+    // Sayfanın merkezi ~297. 400 genişlik verirsek sol kenar ~97 olur.
     doc.fontSize(12).font('Helvetica').fillColor('#444444')
        .text('This certifies that the digital asset identified below has been permanently anchored to the Polygon Mainnet Blockchain, providing immutable proof of existence at the recorded date.', 
-       97, // X Konumu (Ortalamak için)
-       doc.y, 
-       { align: 'center', width: 400 });
+       97, doc.y, { align: 'center', width: 400 });
 
     doc.moveDown(3);
 
-    // Mavi Kutu
+    // MAVİ KUTU VE DETAYLAR
     const startY = doc.y;
     doc.rect(50, startY, 495, 160).fillOpacity(0.05).fill('#3b82f6');
     doc.fillOpacity(1);
 
     doc.y = startY + 20;
     
-    // Bilgiler
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#1a1a1a').text('FILE NAME:', 70);
     doc.font('Helvetica').fontSize(12).text(fileName);
     doc.moveDown(0.5);
@@ -270,21 +256,38 @@ app.get('/certificate', (req, res) => {
     doc.fontSize(9).fillColor('#3b82f6')
        .text(tx, { link: `https://polygonscan.com/tx/${tx}`, underline: true });
 
-    // QR Kod (Konum Ayarlandı)
+    // --- ALT KISIM (FOOTER BÖLGESİ) ---
+    // Manuel Y koordinatları ile sabitleyelim.
+    
+    // 1. SOL: MÜHÜR (Y: 660)
+    const sealY = 660;
+    doc.circle(100, sealY + 40, 40).lineWidth(2).strokeColor('#3b82f6').stroke(); // Dış
+    doc.circle(100, sealY + 40, 35).lineWidth(1).strokeColor('#3b82f6').stroke(); // İç
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#3b82f6').text('BLOCKCHAIN', 65, sealY + 25);
+    doc.text('VERIFIED', 75, sealY + 38);
+    doc.fontSize(8).text('SECURE', 83, sealY + 52);
+
+    // 2. ORTA: MYFILESEAL LOGOSU (İstediğin Yer)
+    // Mühür ve QR kodun tam ortasına, tıklanabilir logo.
+    const logoY = sealY + 25; 
+    doc.fontSize(16).fillColor('#3b82f6').text('MyFileSeal', 250, logoY, {
+        align: 'center',
+        link: 'https://www.myfileseal.com',
+        underline: false
+    });
+    doc.fontSize(8).fillColor('#94a3b8').text('Digital Notary Service', 250, logoY + 20, { align: 'center' });
+
+    // 3. SAĞ: QR KOD (Y: 660)
     const qrSvg = qr.imageSync(`https://polygonscan.com/tx/${tx}`, { type: 'png' });
-    doc.image(qrSvg, 450, 650, { width: 90 });
-    doc.fontSize(8).fillColor('black').text('SCAN TO VERIFY', 450, 745, { width: 90, align: 'center' });
+    doc.image(qrSvg, 450, sealY, { width: 80 });
+    doc.fontSize(8).fillColor('black').text('SCAN TO VERIFY', 450, sealY + 85, { width: 80, align: 'center' });
 
-    // Mühür (Vektörel)
-    doc.circle(100, 700, 40).lineWidth(2).strokeColor('#3b82f6').stroke();
-    doc.circle(100, 700, 35).lineWidth(1).strokeColor('#3b82f6').stroke();
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#3b82f6').text('BLOCKCHAIN', 65, 685);
-    doc.text('VERIFIED', 75, 698);
-    doc.fontSize(8).text('SECURE', 83, 712);
-
-    // Footer (DÜZELTİLDİ: Sayfa sonuna, çerçeve içine çekildi)
-    // A4 yüksekliği ~841pt. Çerçeve 820'de bitiyor. Footer'ı 790'a koyalım.
-    doc.text('Powered by MyFileSeal.com', 0, 790, { align: 'center', width: 595, color: 'grey' });
+    // 4. FOOTER YAZISI (EN ALTTA, ÇERÇEVE İÇİNDE)
+    // Çerçeve 780'de bitiyor. Yazıyı 760'a koyarsak garanti içinde kalır.
+    doc.fontSize(9).fillColor('grey').text('Powered by MyFileSeal.com - Immutable Proof on Polygon Network', 0, 760, {
+        align: 'center',
+        width: 595 // Sayfa genişliği kadar
+    });
 
     doc.end();
 });
