@@ -1,6 +1,6 @@
 const { ethers } = require("ethers");
 
-const cuzdanAdresi = "0xBE54a3E276E86B48eAc6d857fFa03b4a1916EcBd"; // Senin adresin
+const cuzdanAdresi = "0x9ddc467d2731bd58a0a8bd00cb06aaf74ad1a7c9"; // Senin adresin
 
 async function bakiyeSor() {
     console.log("📡 Alternatif Kapıdan Bağlanılıyor...");
