@@ -5,17 +5,38 @@ const crypto = require('crypto');
 const { ethers } = require("ethers");
 const PDFDocument = require('pdfkit');
 const qr = require('qr-image');
+const axios = require('axios'); // API çağrıları için
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-// --- GÜVENLİK ---
-// Private Key SADECE Render kasasından okunur.
+// --- GÜVENLİK VE AYARLAR ---
+// Şifreler ve Anahtarlar Render'ın güvenli kasasından (Environment Variables) okunur.
 const PRIVATE_KEY = process.env.PRIVATE_KEY; 
 const PROVIDER_URL = process.env.RPC_URL || "https://polygon-rpc.com/";
 const PORT = process.env.PORT || 3001;
 
-// --- FONKSİYONLAR ---
+// Admin Paneli Ayarları
+const ADMIN_USER = process.env.ADMIN_USER;
+const ADMIN_PASS = process.env.ADMIN_PASS;
+const ETHERSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY; // Render'da bu isimle kaydettik
+const WALLET_ADDRESS = new ethers.Wallet(PRIVATE_KEY).address; // Cüzdan adresini otomatik türet
+
+// --- ORTA KATMAN (Middleware): Admin Kimlik Doğrulama ---
+function checkAuth(req, res, next) {
+    const auth = { login: ADMIN_USER, password: ADMIN_PASS };
+    const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
+    const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':');
+
+    if (login && password && login === auth.login && password === auth.password) {
+        return next();
+    }
+
+    res.set('WWW-Authenticate', 'Basic realm="Admin Area"');
+    res.status(401).send('Authentication required.');
+}
+
+// --- YARDIMCI FONKSİYONLAR ---
 function calculateHash(filePath) {
     const fileBuffer = fs.readFileSync(filePath);
     const hashSum = crypto.createHash('sha256');
@@ -28,17 +49,134 @@ async function stampToBlockchain(hash) {
     const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
     const feeData = await provider.getFeeData();
+    
+    // İşlemi gönder
     const tx = await wallet.sendTransaction({
-        to: wallet.address,
+        to: wallet.address, // Kendimize 0 MATIC gönderiyoruz
         value: 0,
-        data: '0x' + hash,
+        data: '0x' + hash, // Hash'i not düşüyoruz
         gasPrice: feeData.gasPrice 
     });
+    
+    // Onayı bekle
     await tx.wait();
     return tx.hash;
 }
 
-// --- HTML ARAYÜZÜ ---
+// --- ADMIN PANELİ ROTASI ---
+app.get('/admin', checkAuth, async (req, res) => {
+    try {
+        // 1. Cüzdan Bakiyesini Çek
+        const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
+        const balanceWei = await provider.getBalance(WALLET_ADDRESS);
+        const balance = ethers.formatEther(balanceWei);
+
+        // 2. İşlem Geçmişini Çek (Etherscan V2 API - Polygon Chain ID: 137)
+        // Not: Etherscan V2 artık tüm zincirleri destekliyor. chainid=137 Polygon Mainnet'tir.
+        const apiUrl = `https://api.etherscan.io/v2/api?chainid=137&module=account&action=txlist&address=${WALLET_ADDRESS}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+        
+        const response = await axios.get(apiUrl);
+        const transactions = response.data.result;
+
+        // 3. Tabloyu Oluştur
+        let tableRows = '';
+        if (Array.isArray(transactions)) {
+            transactions.forEach(tx => {
+                // Sadece bizim gönderdiğimiz işlemleri (bizim mühürlediklerimizi) göster
+                if(tx.from.toLowerCase() === WALLET_ADDRESS.toLowerCase()) {
+                    const date = new Date(tx.timeStamp * 1000).toLocaleString('tr-TR');
+                    // Gas Cost hesabı (Wei -> Ether)
+                    const gasCost = ethers.formatEther(BigInt(tx.gasUsed) * BigInt(tx.gasPrice));
+                    const status = tx.isError === '0' ? '<span style="color:#34d399; font-weight:bold">Success</span>' : '<span style="color:red; font-weight:bold">Fail</span>';
+                    
+                    tableRows += `
+                        <tr>
+                            <td>${date}</td>
+                            <td><a href="https://polygonscan.com/tx/${tx.hash}" target="_blank" style="color:#3b82f6; text-decoration:none;">View TX ↗</a></td>
+                            <td>${status}</td>
+                            <td style="font-family:monospace">${parseFloat(gasCost).toFixed(6)} POL</td>
+                        </tr>
+                    `;
+                }
+            });
+        } else {
+            tableRows = '<tr><td colspan="4" style="text-align:center; padding:2rem;">No transactions found or API Error.</td></tr>';
+        }
+
+        // 4. Admin HTML Tasarımı
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <title>CEO Dashboard | MyFileSeal</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; padding: 2rem; margin:0; }
+                    .container { max-width: 1000px; margin: 0 auto; }
+                    h1 { color: #3b82f6; margin-bottom:0.5rem; }
+                    .subtitle { color: #94a3b8; margin-bottom: 2rem; border-bottom: 1px solid #334155; padding-bottom: 1rem; }
+                    
+                    .card { background: #1e293b; padding: 2rem; border-radius: 1rem; margin-bottom: 2rem; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+                    .balance-title { color:#94a3b8; font-size:0.9rem; letter-spacing:1px; text-transform:uppercase; }
+                    .balance { font-size: 3rem; font-weight: 800; margin: 0.5rem 0; }
+                    .wallet-address { background:#0f172a; padding:0.5rem 1rem; border-radius:0.5rem; font-family:monospace; color:#cbd5e1; display:inline-block; border:1px solid #334155; }
+                    
+                    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.95rem; }
+                    th { text-align: left; padding: 1rem; border-bottom: 2px solid #334155; color: #94a3b8; text-transform: uppercase; font-size: 0.8rem; }
+                    td { padding: 1rem; border-bottom: 1px solid #334155; }
+                    tr:last-child td { border-bottom: none; }
+                    tr:hover { background: #334155; }
+                    
+                    .btn-back { display:inline-block; margin-top:2rem; color:#64748b; text-decoration:none; padding:0.5rem 1rem; border:1px solid #334155; border-radius:0.5rem; transition:0.2s; }
+                    .btn-back:hover { background:#1e293b; color:#fff; border-color:#64748b; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🚀 CEO Dashboard</h1>
+                    <div class="subtitle">Operational Overview & Financial Status</div>
+                    
+                    <div class="card">
+                        <div class="balance-title">Current Operating Capital</div>
+                        <div class="balance">${parseFloat(balance).toFixed(4)} <span style="font-size:1.5rem; color:#3b82f6">POL</span></div>
+                        <div class="wallet-address">${WALLET_ADDRESS}</div>
+                    </div>
+
+                    <div class="card">
+                        <h3 style="margin-top:0; color:#e2e8f0;">📜 Recent Blockchain Activities</h3>
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Transaction Hash</th>
+                                        <th>Status</th>
+                                        <th>Gas Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div style="text-align:center;">
+                        <a href="/" class="btn-back">← Return to Public Site</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
+
+    } catch (error) {
+        console.error(error);
+        res.send(`<h1 style="color:red">Dashboard Error</h1><p>${error.message}</p><p>Check your API Key configuration.</p>`);
+    }
+});
+
+// --- HTML ARAYÜZÜ (Ana Sayfa) ---
 const htmlTemplate = (content) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -199,12 +337,11 @@ app.post('/seal', upload.single('document'), async (req, res) => {
     }
 });
 
-// --- FİNAL PDF TASARIMI ---
+// --- PDF OLUŞTURMA ---
 app.get('/certificate', (req, res) => {
     const { hash, tx, name } = req.query;
     if(!hash || !tx) return res.send("Missing data.");
 
-    // autoFirstPage: false (Sayfa kontrolü bizde olsun)
     const doc = new PDFDocument({ margin: 50, size: 'A4' }); 
     const fileName = name || "Document";
 
@@ -212,27 +349,21 @@ app.get('/certificate', (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=Certificate.pdf`);
     doc.pipe(res);
 
-    // ÇERÇEVELERİ BİRAZ KÜÇÜLTELİM Kİ TAŞMASIN (Safe Zone)
-    // A4 Yükseklik: ~841 px. Biz 780'e kadar sınır çizelim.
-    doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); // Altın
-    doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); // Siyah
+    doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); 
+    doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); 
 
-    // BAŞLIK
     doc.moveDown(2);
     doc.font('Helvetica-Bold').fontSize(30).fillColor('#1a1a1a').text('CERTIFICATE', { align: 'center' });
     doc.fontSize(12).fillColor('#C5A059').text('OF BLOCKCHAIN TIMESTAMP', { align: 'center', characterSpacing: 2 });
     
     doc.moveDown(2);
 
-    // ORTALANMIŞ AÇIKLAMA (Koordinatlı yerleşim)
-    // Sayfanın merkezi ~297. 400 genişlik verirsek sol kenar ~97 olur.
     doc.fontSize(12).font('Helvetica').fillColor('#444444')
        .text('This certifies that the digital asset identified below has been permanently anchored to the Polygon Mainnet Blockchain, providing immutable proof of existence at the recorded date.', 
        97, doc.y, { align: 'center', width: 400 });
 
     doc.moveDown(3);
 
-    // MAVİ KUTU VE DETAYLAR
     const startY = doc.y;
     doc.rect(50, startY, 495, 160).fillOpacity(0.05).fill('#3b82f6');
     doc.fillOpacity(1);
@@ -250,44 +381,27 @@ app.get('/certificate', (req, res) => {
     doc.font('Helvetica-Bold').fontSize(10).text('CRYPTOGRAPHIC FINGERPRINT (SHA-256):');
     doc.font('Courier').fontSize(10).fillColor('#333333').text(hash, { width: 450 });
     
-    // Transaction ID
     doc.y = startY + 180;
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#000').text('TRANSACTION ID (TX):', 50);
     doc.fontSize(9).fillColor('#3b82f6')
        .text(tx, { link: `https://polygonscan.com/tx/${tx}`, underline: true });
 
-    // --- ALT KISIM (FOOTER BÖLGESİ) ---
-    // Manuel Y koordinatları ile sabitleyelim.
-    
-    // 1. SOL: MÜHÜR (Y: 660)
     const sealY = 660;
-    doc.circle(100, sealY + 40, 40).lineWidth(2).strokeColor('#3b82f6').stroke(); // Dış
-    doc.circle(100, sealY + 40, 35).lineWidth(1).strokeColor('#3b82f6').stroke(); // İç
+    doc.circle(100, sealY + 40, 40).lineWidth(2).strokeColor('#3b82f6').stroke();
+    doc.circle(100, sealY + 40, 35).lineWidth(1).strokeColor('#3b82f6').stroke();
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#3b82f6').text('BLOCKCHAIN', 65, sealY + 25);
     doc.text('VERIFIED', 75, sealY + 38);
     doc.fontSize(8).text('SECURE', 83, sealY + 52);
 
-    // 2. ORTA: MYFILESEAL LOGOSU (İstediğin Yer)
-    // Mühür ve QR kodun tam ortasına, tıklanabilir logo.
     const logoY = sealY + 25; 
-    doc.fontSize(16).fillColor('#3b82f6').text('MyFileSeal', 250, logoY, {
-        align: 'center',
-        link: 'https://www.myfileseal.com',
-        underline: false
-    });
+    doc.fontSize(16).fillColor('#3b82f6').text('MyFileSeal', 250, logoY, { align: 'center', link: 'https://www.myfileseal.com', underline: false });
     doc.fontSize(8).fillColor('#94a3b8').text('Digital Notary Service', 250, logoY + 20, { align: 'center' });
 
-    // 3. SAĞ: QR KOD (Y: 660)
     const qrSvg = qr.imageSync(`https://polygonscan.com/tx/${tx}`, { type: 'png' });
     doc.image(qrSvg, 450, sealY, { width: 80 });
     doc.fontSize(8).fillColor('black').text('SCAN TO VERIFY', 450, sealY + 85, { width: 80, align: 'center' });
 
-    // 4. FOOTER YAZISI (EN ALTTA, ÇERÇEVE İÇİNDE)
-    // Çerçeve 780'de bitiyor. Yazıyı 760'a koyarsak garanti içinde kalır.
-    doc.fontSize(9).fillColor('grey').text('Powered by MyFileSeal.com - Immutable Proof on Polygon Network', 0, 760, {
-        align: 'center',
-        width: 595 // Sayfa genişliği kadar
-    });
+    doc.fontSize(9).fillColor('grey').text('Powered by MyFileSeal.com - Immutable Proof on Polygon Network', 0, 760, { align: 'center', width: 595 });
 
     doc.end();
 });
