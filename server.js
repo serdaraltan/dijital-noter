@@ -54,7 +54,7 @@ async function stampToBlockchain(hash) {
     return tx.hash;
 }
 
-// --- HTML ŞABLONU (YENİLENMİŞ UI) ---
+// --- HTML ŞABLONU (YENİLENMİŞ UI + 6 FAQ) ---
 const htmlTemplate = (content) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -105,7 +105,7 @@ const htmlTemplate = (content) => `
         
         .info-box { background: rgba(30, 41, 59, 0.4); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); transition: 0.2s; }
         .info-box:hover { border-color: var(--primary); transform: translateY(-5px); }
-        .info-box h3 { margin-top: 0; color: var(--primary); font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
+        .info-box h3 { margin-top: 0; color: var(--primary); font-size: 1.1rem; display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
         .info-box p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 0; }
 
         /* Result Styles */
@@ -191,6 +191,14 @@ const htmlTemplate = (content) => `
                 <h3>✏️ Can I edit the file?</h3>
                 <p>No. Changing even a single pixel or comma will change the Hash, breaking the proof. Keep your original file safe.</p>
             </div>
+            <div class="info-box">
+                <h3>👤 Do I need an account?</h3>
+                <p>No. We believe in privacy and simplicity. You can seal your documents instantly without any sign-up or login.</p>
+            </div>
+            <div class="info-box">
+                <h3>⏳ How long is the proof valid?</h3>
+                <p><strong>Forever.</strong> The Polygon Blockchain is immutable. Even if this website disappears, your proof remains on the blockchain eternally.</p>
+            </div>
         </div>
 
         <footer>
@@ -262,7 +270,7 @@ app.post('/seal', upload.single('document'), async (req, res) => {
     }
 });
 
-// --- ADMIN PANELİ ---
+// --- ADMIN PANELİ (DÜZELTİLDİ: ORTALI ve KOMPAKT) ---
 app.get('/admin', checkAuth, async (req, res) => {
     try {
         const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
@@ -288,55 +296,121 @@ app.get('/admin', checkAuth, async (req, res) => {
         res.send(`
             <!DOCTYPE html>
             <html lang="en">
-            <head><title>CEO Dashboard</title><style>body{background:#0f172a;color:#f8fafc;font-family:sans-serif;padding:2rem}.card{background:#1e293b;padding:1.5rem;border-radius:0.5rem;margin-bottom:1rem;border:1px solid #334155}table{width:100%;border-collapse:collapse;margin-top:1rem}th,td{text-align:left;padding:0.8rem;border-bottom:1px solid #334155}a{color:#3b82f6}</style></head>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>CEO Dashboard</title>
+                <style>
+                    body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; padding: 0; margin:0; display:flex; justify-content:center; }
+                    .container { width: 100%; max-width: 850px; margin-top: 50px; padding: 20px; }
+                    h1 { color: #3b82f6; margin-bottom:0.5rem; text-align:center; }
+                    .subtitle { color: #94a3b8; margin-bottom: 2rem; padding-bottom: 1rem; text-align:center; font-size:0.9rem; }
+                    
+                    .card { background: #1e293b; padding: 1.5rem; border-radius: 1rem; margin-bottom: 1.5rem; border: 1px solid #334155; }
+                    .balance { font-size: 2.5rem; font-weight: 800; margin: 0; text-align:center; }
+                    .wallet-address { font-family:monospace; color:#64748b; font-size:0.8rem; text-align:center; display:block; margin-top:5px; word-break:break-all; }
+                    
+                    table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 0.9rem; }
+                    th { text-align: left; padding: 0.8rem; border-bottom: 2px solid #334155; color: #94a3b8; text-transform: uppercase; font-size: 0.75rem; }
+                    td { padding: 0.8rem; border-bottom: 1px solid #334155; }
+                    tr:last-child td { border-bottom: none; }
+                    tr:hover { background: #334155; }
+                    
+                    .btn-back { display:block; margin-top:2rem; color:#64748b; text-decoration:none; text-align:center; font-size:0.9rem; }
+                    .btn-back:hover { color:#fff; }
+                </style>
+            </head>
             <body>
-                <h1>🚀 CEO Dashboard</h1>
-                <div class="card"><h3>Balance</h3><h1>${parseFloat(balance).toFixed(4)} POL</h1><small>${WALLET_ADDRESS}</small></div>
-                <div class="card"><h3>Transactions</h3><table><thead><tr><th>Date</th><th>Link</th><th>Status</th><th>Cost</th></tr></thead><tbody>${tableRows}</tbody></table></div>
-                <a href="/">Back to Site</a>
-            </body></html>
+                <div class="container">
+                    <h1>🚀 CEO Dashboard</h1>
+                    <div class="subtitle">Operations Center</div>
+                    
+                    <div class="card">
+                        <div style="text-align:center; color:#94a3b8; font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px;">Current Capital</div>
+                        <div class="balance">${parseFloat(balance).toFixed(4)} <span style="font-size:1.2rem; color:#3b82f6">POL</span></div>
+                        <span class="wallet-address">${WALLET_ADDRESS}</span>
+                    </div>
+
+                    <div class="card">
+                        <h3 style="margin-top:0; margin-bottom:1rem; color:#e2e8f0; font-size:1.1rem;">📜 Recent Activity</h3>
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Transaction</th>
+                                        <th>Status</th>
+                                        <th>Cost (POL)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <a href="/" class="btn-back">← Return to Public Site</a>
+                </div>
+            </body>
+            </html>
         `);
     } catch (error) { res.send(`Error: ${error.message}`); }
 });
 
-// --- PDF SERTİFİKA ---
+// --- PDF SERTİFİKA (PREMIUM TASARIM) ---
 app.get('/certificate', (req, res) => {
     const { hash, tx, name } = req.query;
     if(!hash || !tx) return res.send("Missing data.");
+
     const doc = new PDFDocument({ margin: 50, size: 'A4' }); 
     const fileName = name || "Document";
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=Certificate.pdf`);
     doc.pipe(res);
 
+    // Çerçeveler
     doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); 
     doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); 
 
+    // Başlık
     doc.moveDown(2);
     doc.font('Helvetica-Bold').fontSize(30).fillColor('#1a1a1a').text('CERTIFICATE', { align: 'center' });
     doc.fontSize(12).fillColor('#C5A059').text('OF BLOCKCHAIN TIMESTAMP', { align: 'center', characterSpacing: 2 });
+    
     doc.moveDown(2);
-    doc.fontSize(12).font('Helvetica').fillColor('#444444').text('This certifies that the digital asset identified below has been permanently anchored to the Polygon Mainnet Blockchain, providing immutable proof of existence at the recorded date.', 97, doc.y, { align: 'center', width: 400 });
+
+    // Açıklama
+    doc.fontSize(12).font('Helvetica').fillColor('#444444')
+       .text('This certifies that the digital asset identified below has been permanently anchored to the Polygon Mainnet Blockchain, providing immutable proof of existence at the recorded date.', 
+       97, doc.y, { align: 'center', width: 400 });
+
     doc.moveDown(3);
 
     const startY = doc.y;
     doc.rect(50, startY, 495, 160).fillOpacity(0.05).fill('#3b82f6');
     doc.fillOpacity(1);
+
     doc.y = startY + 20;
     
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#1a1a1a').text('FILE NAME:', 70);
     doc.font('Helvetica').fontSize(12).text(fileName);
     doc.moveDown(0.5);
+
     doc.font('Helvetica-Bold').fontSize(10).text('TIMESTAMP DATE:');
     doc.font('Helvetica').fontSize(12).text(new Date().toUTCString());
     doc.moveDown(0.5);
+
     doc.font('Helvetica-Bold').fontSize(10).text('CRYPTOGRAPHIC FINGERPRINT (SHA-256):');
     doc.font('Courier').fontSize(10).fillColor('#333333').text(hash, { width: 450 });
     
     doc.y = startY + 180;
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#000').text('TRANSACTION ID (TX):', 50);
-    doc.fontSize(9).fillColor('#3b82f6').text(tx, { link: `https://polygonscan.com/tx/${tx}`, underline: true });
+    doc.fontSize(9).fillColor('#3b82f6')
+       .text(tx, { link: `https://polygonscan.com/tx/${tx}`, underline: true });
 
+    // Footer Bileşenleri
     const sealY = 660;
     doc.circle(100, sealY + 40, 40).lineWidth(2).strokeColor('#3b82f6').stroke();
     doc.circle(100, sealY + 40, 35).lineWidth(1).strokeColor('#3b82f6').stroke();
@@ -352,7 +426,9 @@ app.get('/certificate', (req, res) => {
     doc.image(qrSvg, 450, sealY, { width: 80 });
     doc.fontSize(8).fillColor('black').text('SCAN TO VERIFY', 450, sealY + 85, { width: 80, align: 'center' });
 
+    // Footer Yazısı (Çerçeve İçine Sabitlendi)
     doc.fontSize(9).fillColor('grey').text('Powered by MyFileSeal.com - Immutable Proof on Polygon Network', 0, 760, { align: 'center', width: 595 });
+
     doc.end();
 });
 
