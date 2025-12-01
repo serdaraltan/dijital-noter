@@ -11,8 +11,7 @@ const path = require('path');
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-// --- STATİK DOSYALAR (LOGO İÇİN) ---
-// 'public' klasörünü dışarıya açıyoruz
+// --- STATİK DOSYALAR ---
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- GÜVENLİK AYARLARI ---
@@ -87,11 +86,10 @@ const htmlTemplate = (content) => `
         .spinner { width: 60px; height: 60px; border: 6px solid var(--border); border-top: 6px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1.5rem; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* LOGO STYLE */
+        /* LOGO STYLE (Banner Uyumlu) */
         .navbar { display: flex; justify-content: center; align-items: center; padding: 2rem 0 3rem 0; flex-direction: column; }
-        .site-logo { width: 180px; height: auto; margin-bottom: 1rem; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3)); }
-        .subtitle { color: var(--text-muted); font-size: 1.1rem; text-align: center; }
-
+        .site-logo { width: 350px; max-width: 100%; height: auto; margin-bottom: 0.5rem; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.2)); }
+        
         .card { background: var(--card); padding: 3rem; border-radius: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid var(--border); text-align: center; margin-bottom: 4rem; }
         .upload-area { border: 2px dashed var(--border); border-radius: 1rem; padding: 3rem; transition: 0.3s; cursor: pointer; position: relative; background: rgba(15, 23, 42, 0.3); }
         .upload-area:hover { border-color: var(--primary); background: rgba(59, 130, 246, 0.05); }
@@ -105,10 +103,11 @@ const htmlTemplate = (content) => `
 
         .section-title { font-size: 1.5rem; color: #e2e8f0; margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; }
         .section-title::before { content: ''; display: block; width: 5px; height: 25px; background: var(--primary); border-radius: 2px; }
+        
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 4rem; }
         .info-box { background: rgba(30, 41, 59, 0.4); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); transition: 0.2s; }
         .info-box:hover { border-color: var(--primary); transform: translateY(-5px); }
-        .info-box h3 { margin-top: 0; color: var(--primary); font-size: 1.2rem; display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
+        .info-box h3 { margin-top: 0; color: var(--primary); font-size: 1.1rem; display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
         .info-box p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 0; }
 
         .hash-display { background: #020617; padding: 1.2rem; border-radius: 0.5rem; font-family: 'Courier New', monospace; font-size: 0.9rem; color: #cbd5e1; word-break: break-all; border: 1px solid var(--border); margin: 1rem 0; }
@@ -148,10 +147,9 @@ const htmlTemplate = (content) => `
     <div class="container">
         <div class="navbar">
             <a href="/">
-                <img src="/logo.jpg" alt="MyFileSeal Logo" class="site-logo">
+                <img src="/logo.jpg" alt="MyFileSeal" class="site-logo">
             </a>
-            <div class="subtitle">Secure Blockchain Timestamping Service</div>
-        </div>
+            </div>
 
         ${content}
 
@@ -248,73 +246,7 @@ app.post('/seal', upload.single('document'), async (req, res) => {
     }
 });
 
-// --- PDF SERTİFİKA (LOGO EKLENDİ) ---
-app.get('/certificate', (req, res) => {
-    const { hash, tx, name } = req.query;
-    if(!hash || !tx) return res.send("Missing data.");
-    const doc = new PDFDocument({ margin: 50, size: 'A4' }); 
-    const fileName = name || "Document";
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=Certificate.pdf`);
-    doc.pipe(res);
-
-    // LOGO EKLEME (Sayfanın Tepesine, Ortaya)
-    // Logo dosyasının public/logo.jpg yolunda olduğunu varsayıyoruz
-    const logoPath = path.join(__dirname, 'public', 'logo.jpg');
-    if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, 245, 40, { width: 100 }); // X=245 (Ortalamak için), Y=40
-    }
-
-    // Başlık ve Çerçeveler
-    doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); 
-    doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); 
-
-    doc.moveDown(6); // Logo için biraz boşluk bırak
-    doc.font('Helvetica-Bold').fontSize(30).fillColor('#1a1a1a').text('CERTIFICATE', { align: 'center' });
-    doc.fontSize(12).fillColor('#C5A059').text('OF BLOCKCHAIN TIMESTAMP', { align: 'center', characterSpacing: 2 });
-    
-    doc.moveDown(2);
-    doc.fontSize(12).font('Helvetica').fillColor('#444444').text('This certifies that the digital asset identified below has been permanently anchored to the Polygon Mainnet Blockchain, providing immutable proof of existence at the recorded date.', 97, doc.y, { align: 'center', width: 400 });
-    
-    doc.moveDown(3);
-    const startY = doc.y;
-    doc.rect(50, startY, 495, 160).fillOpacity(0.05).fill('#3b82f6');
-    doc.fillOpacity(1);
-    doc.y = startY + 20;
-    
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#1a1a1a').text('FILE NAME:', 70);
-    doc.font('Helvetica').fontSize(12).text(fileName);
-    doc.moveDown(0.5);
-    doc.font('Helvetica-Bold').fontSize(10).text('TIMESTAMP DATE:');
-    doc.font('Helvetica').fontSize(12).text(new Date().toUTCString());
-    doc.moveDown(0.5);
-    doc.font('Helvetica-Bold').fontSize(10).text('CRYPTOGRAPHIC FINGERPRINT (SHA-256):');
-    doc.font('Courier').fontSize(10).fillColor('#333333').text(hash, { width: 450 });
-    
-    doc.y = startY + 180;
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#000').text('TRANSACTION ID (TX):', 50);
-    doc.fontSize(9).fillColor('#3b82f6').text(tx, { link: `https://polygonscan.com/tx/${tx}`, underline: true });
-
-    const sealY = 660;
-    doc.circle(100, sealY + 40, 40).lineWidth(2).strokeColor('#3b82f6').stroke();
-    doc.circle(100, sealY + 40, 35).lineWidth(1).strokeColor('#3b82f6').stroke();
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#3b82f6').text('BLOCKCHAIN', 65, sealY + 25);
-    doc.text('VERIFIED', 75, sealY + 38);
-    doc.fontSize(8).text('SECURE', 83, sealY + 52);
-
-    const logoY = sealY + 25; 
-    doc.fontSize(16).fillColor('#3b82f6').text('MyFileSeal', 250, logoY, { align: 'center', link: 'https://www.myfileseal.com', underline: false });
-    doc.fontSize(8).fillColor('#94a3b8').text('Digital Notary Service', 250, logoY + 20, { align: 'center' });
-
-    const qrSvg = qr.imageSync(`https://polygonscan.com/tx/${tx}`, { type: 'png' });
-    doc.image(qrSvg, 450, sealY, { width: 80 });
-    doc.fontSize(8).fillColor('black').text('SCAN TO VERIFY', 450, sealY + 85, { width: 80, align: 'center' });
-
-    doc.fontSize(9).fillColor('grey').text('Powered by MyFileSeal.com - Immutable Proof on Polygon Network', 0, 760, { align: 'center', width: 595 });
-    doc.end();
-});
-
-// --- ADMIN PANELİ (Kompakt) ---
+// --- ADMIN PANELİ ---
 app.get('/admin', checkAuth, async (req, res) => {
     try {
         const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
@@ -334,8 +266,75 @@ app.get('/admin', checkAuth, async (req, res) => {
                 }
             });
         }
-        res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>CEO Dashboard</title><style>body{background:#0f172a;color:#f8fafc;font-family:'Segoe UI',sans-serif;padding:0;margin:0;display:flex;justify-content:center}.container{width:100%;max-width:850px;margin-top:50px;padding:20px}h1{color:#3b82f6;margin-bottom:0.5rem;text-align:center}.card{background:#1e293b;padding:1.5rem;border-radius:1rem;margin-bottom:1.5rem;border:1px solid #334155}.balance{font-size:2.5rem;font-weight:800;margin:0;text-align:center}.wallet-address{font-family:monospace;color:#64748b;font-size:0.8rem;text-align:center;display:block;margin-top:5px;word-break:break-all}table{width:100%;border-collapse:collapse;margin-top:0;font-size:0.9rem}th{text-align:left;padding:0.8rem;border-bottom:2px solid #334155;color:#94a3b8;text-transform:uppercase;font-size:0.75rem}td{padding:0.8rem;border-bottom:1px solid #334155}tr:hover{background:#334155}.btn-back{display:block;margin-top:2rem;color:#64748b;text-decoration:none;text-align:center;font-size:0.9rem}.analytics-link{text-align:center;margin-top:10px;display:block;color:#3b82f6;font-size:0.9rem;text-decoration:none}</style></head><body><div class="container"><h1>🚀 CEO Dashboard</h1><div class="card"><div style="text-align:center;color:#94a3b8;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Current Capital</div><div class="balance">${parseFloat(balance).toFixed(4)} <span style="font-size:1.2rem;color:#3b82f6">POL</span></div><span class="wallet-address">${WALLET_ADDRESS}</span></div><div class="card" style="text-align:center"><h3 style="margin-top:0;color:#e2e8f0">📊 Traffic Reports</h3><a href="https://analytics.google.com/" target="_blank" class="analytics-link">Open Google Analytics Dashboard ↗</a></div><div class="card"><h3 style="margin-top:0;margin-bottom:1rem;color:#e2e8f0;font-size:1.1rem">📜 Recent Activity</h3><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Transaction</th><th>Status</th><th>Cost (POL)</th></tr></thead><tbody>${tableRows}</tbody></table></div></div><a href="/" class="btn-back">← Return to Public Site</a></div></body></html>`);
+        res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>CEO Dashboard</title><style>body{background:#0f172a;color:#f8fafc;font-family:'Segoe UI',sans-serif;padding:0;margin:0;display:flex;justify-content:center}.container{width:100%;max-width:850px;margin-top:50px;padding:20px}h1{color:#3b82f6;margin-bottom:0.5rem;text-align:center}.subtitle{color:#94a3b8;margin-bottom:2rem;padding-bottom:1rem;text-align:center;font-size:0.9rem}.card{background:#1e293b;padding:1.5rem;border-radius:1rem;margin-bottom:1.5rem;border:1px solid #334155}.balance{font-size:2.5rem;font-weight:800;margin:0;text-align:center}.wallet-address{font-family:monospace;color:#64748b;font-size:0.8rem;text-align:center;display:block;margin-top:5px;word-break:break-all}table{width:100%;border-collapse:collapse;margin-top:0;font-size:0.9rem}th{text-align:left;padding:0.8rem;border-bottom:2px solid #334155;color:#94a3b8;text-transform:uppercase;font-size:0.75rem}td{padding:0.8rem;border-bottom:1px solid #334155}tr:last-child td{border-bottom:none}tr:hover{background:#334155}.btn-back{display:block;margin-top:2rem;color:#64748b;text-decoration:none;text-align:center;font-size:0.9rem}.btn-back:hover{color:#fff}.analytics-link{text-align:center;margin-top:10px;display:block;color:#3b82f6;font-size:0.9rem;text-decoration:none}</style></head><body><div class="container"><h1>🚀 CEO Dashboard</h1><div class="subtitle">Operations Center</div><div class="card"><div style="text-align:center;color:#94a3b8;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Current Capital</div><div class="balance">${parseFloat(balance).toFixed(4)} <span style="font-size:1.2rem;color:#3b82f6">POL</span></div><span class="wallet-address">${WALLET_ADDRESS}</span></div><div class="card" style="text-align:center"><h3 style="margin-top:0;color:#e2e8f0">📊 Traffic Reports</h3><a href="https://analytics.google.com/" target="_blank" class="analytics-link">Open Google Analytics Dashboard ↗</a></div><div class="card"><h3 style="margin-top:0;margin-bottom:1rem;color:#e2e8f0;font-size:1.1rem">📜 Recent Activity</h3><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Transaction</th><th>Status</th><th>Cost (POL)</th></tr></thead><tbody>${tableRows}</tbody></table></div></div><a href="/" class="btn-back">← Return to Public Site</a></div></body></html>`);
     } catch (error) { res.send(`Error: ${error.message}`); }
+});
+
+// --- PDF SERTİFİKA (TEPE LOGO YOK, ALTTA MİNİLOGO) ---
+app.get('/certificate', (req, res) => {
+    const { hash, tx, name } = req.query;
+    if(!hash || !tx) return res.send("Missing data.");
+    const doc = new PDFDocument({ margin: 50, size: 'A4' }); 
+    const fileName = name || "Document";
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Certificate.pdf`);
+    doc.pipe(res);
+
+    // Çerçeveler
+    doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); 
+    doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); 
+
+    // Tepe Logo İPTAL EDİLDİ - Sadece Metin
+    doc.moveDown(3);
+    doc.font('Helvetica-Bold').fontSize(30).fillColor('#1a1a1a').text('CERTIFICATE', { align: 'center' });
+    doc.fontSize(12).fillColor('#C5A059').text('OF BLOCKCHAIN TIMESTAMP', { align: 'center', characterSpacing: 2 });
+    
+    doc.moveDown(2);
+    doc.fontSize(12).font('Helvetica').fillColor('#444444').text('This certifies that the digital asset identified below has been permanently anchored to the Polygon Mainnet Blockchain, providing immutable proof of existence at the recorded date.', 97, doc.y, { align: 'center', width: 400 });
+    doc.moveDown(3);
+
+    const startY = doc.y;
+    doc.rect(50, startY, 495, 160).fillOpacity(0.05).fill('#3b82f6');
+    doc.fillOpacity(1);
+    doc.y = startY + 20;
+    
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#1a1a1a').text('FILE NAME:', 70);
+    doc.font('Helvetica').fontSize(12).text(fileName);
+    doc.moveDown(0.5);
+    doc.font('Helvetica-Bold').fontSize(10).text('TIMESTAMP DATE:');
+    doc.font('Helvetica').fontSize(12).text(new Date().toUTCString());
+    doc.moveDown(0.5);
+    doc.font('Helvetica-Bold').fontSize(10).text('CRYPTOGRAPHIC FINGERPRINT (SHA-256):');
+    doc.font('Courier').fontSize(10).fillColor('#333333').text(hash, { width: 450 });
+    
+    doc.y = startY + 180;
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#000').text('TRANSACTION ID (TX):', 50);
+    doc.fontSize(9).fillColor('#3b82f6').text(tx, { link: `https://polygonscan.com/tx/${tx}`, underline: true });
+
+    // --- ALT KISIM ---
+    const sealY = 660;
+    
+    // Sol: Mühür
+    doc.circle(100, sealY + 40, 40).lineWidth(2).strokeColor('#3b82f6').stroke();
+    doc.circle(100, sealY + 40, 35).lineWidth(1).strokeColor('#3b82f6').stroke();
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#3b82f6').text('BLOCKCHAIN', 65, sealY + 25);
+    doc.text('VERIFIED', 75, sealY + 38);
+    doc.fontSize(8).text('SECURE', 83, sealY + 52);
+
+    // ORTA: minilogo.jpg (Text yerine görsel)
+    const miniLogoPath = path.join(__dirname, 'public', 'minilogo.jpg');
+    if (fs.existsSync(miniLogoPath)) {
+        // Logoyu ortala: X=250, Y=sealY+10 civarı
+        doc.image(miniLogoPath, 250, sealY + 10, { width: 120 });
+    }
+
+    // Sağ: QR Kod
+    const qrSvg = qr.imageSync(`https://polygonscan.com/tx/${tx}`, { type: 'png' });
+    doc.image(qrSvg, 450, sealY, { width: 80 });
+    doc.fontSize(8).fillColor('black').text('SCAN TO VERIFY', 450, sealY + 85, { width: 80, align: 'center' });
+
+    doc.fontSize(9).fillColor('grey').text('Powered by MyFileSeal.com - Immutable Proof on Polygon Network', 0, 760, { align: 'center', width: 595 });
+    doc.end();
 });
 
 app.listen(PORT, () => {
