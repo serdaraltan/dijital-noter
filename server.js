@@ -6,9 +6,14 @@ const { ethers } = require("ethers");
 const PDFDocument = require('pdfkit');
 const qr = require('qr-image');
 const axios = require('axios');
+const path = require('path');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
+
+// --- STATİK DOSYALAR (LOGO İÇİN) ---
+// 'public' klasörünü dışarıya açıyoruz
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- GÜVENLİK AYARLARI ---
 const PRIVATE_KEY = process.env.PRIVATE_KEY; 
@@ -54,7 +59,7 @@ async function stampToBlockchain(hash) {
     return tx.hash;
 }
 
-// --- HTML ŞABLONU (GOOGLE ANALYTICS EKLENDİ) ---
+// --- HTML ŞABLONU ---
 const htmlTemplate = (content) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -64,7 +69,6 @@ const htmlTemplate = (content) => `
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'G-Y7E75VTKLT');
     </script>
 
@@ -72,52 +76,41 @@ const htmlTemplate = (content) => `
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyFileSeal | Blockchain Notary</title>
     <meta name="description" content="Secure your documents on Polygon Blockchain.">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+    <link rel="icon" href="/logo.jpg">
     
     <style>
         :root { --primary: #3b82f6; --primary-hover: #2563eb; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --text-muted: #94a3b8; --success: #34d399; --border: #334155; }
         body { margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
         .container { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
         
-        /* Loading Overlay */
         #loadingOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; text-align: center; }
         .spinner { width: 60px; height: 60px; border: 6px solid var(--border); border-top: 6px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1.5rem; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Header & Logo */
+        /* LOGO STYLE */
         .navbar { display: flex; justify-content: center; align-items: center; padding: 2rem 0 3rem 0; flex-direction: column; }
-        .logo-container { display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
-        .logo-svg { width: 40px; height: 40px; fill: var(--primary); }
-        .logo-text { font-size: 2rem; font-weight: 800; letter-spacing: -1px; background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .site-logo { width: 180px; height: auto; margin-bottom: 1rem; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3)); }
         .subtitle { color: var(--text-muted); font-size: 1.1rem; text-align: center; }
 
-        /* Main Card */
         .card { background: var(--card); padding: 3rem; border-radius: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid var(--border); text-align: center; margin-bottom: 4rem; }
-        
-        /* Upload Area */
         .upload-area { border: 2px dashed var(--border); border-radius: 1rem; padding: 3rem; transition: 0.3s; cursor: pointer; position: relative; background: rgba(15, 23, 42, 0.3); }
         .upload-area:hover { border-color: var(--primary); background: rgba(59, 130, 246, 0.05); }
         .upload-area.file-selected { border-color: var(--success); background: rgba(52, 211, 153, 0.05); }
         input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
         
-        /* Buttons */
         button.cta { background: var(--primary); color: white; border: none; padding: 1.2rem 2.5rem; border-radius: 0.75rem; font-size: 1.1rem; font-weight: 700; margin-top: 2rem; cursor: pointer; width: 100%; transition: 0.2s; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3); }
         button.cta:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.4); }
         button.download-btn { background: #f59e0b; color: #fff; margin-top: 1rem; }
         button.download-btn:hover { background: #d97706; }
 
-        /* Grid Layout for Info & FAQ */
         .section-title { font-size: 1.5rem; color: #e2e8f0; margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; }
         .section-title::before { content: ''; display: block; width: 5px; height: 25px; background: var(--primary); border-radius: 2px; }
-        
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 4rem; }
-        
         .info-box { background: rgba(30, 41, 59, 0.4); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--border); transition: 0.2s; }
         .info-box:hover { border-color: var(--primary); transform: translateY(-5px); }
         .info-box h3 { margin-top: 0; color: var(--primary); font-size: 1.2rem; display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
         .info-box p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 0; }
 
-        /* Result Styles */
         .hash-display { background: #020617; padding: 1.2rem; border-radius: 0.5rem; font-family: 'Courier New', monospace; font-size: 0.9rem; color: #cbd5e1; word-break: break-all; border: 1px solid var(--border); margin: 1rem 0; }
         .success-badge { display: inline-flex; align-items: center; gap: 8px; padding: 0.5rem 1.5rem; background: rgba(6, 95, 70, 0.5); color: #34d399; border-radius: 99px; font-weight: 700; font-size: 0.9rem; margin-bottom: 1.5rem; border: 1px solid #065f46; }
 
@@ -154,13 +147,9 @@ const htmlTemplate = (content) => `
 
     <div class="container">
         <div class="navbar">
-            <div class="logo-container">
-                <svg class="logo-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.67-3.13 8.96-7 10.15-3.87-1.19-7-5.48-7-10.15V6.3l7-3.12z"/>
-                    <path d="M10 7h4v2h-4V7zm0 4h4v2h-4v-2zm0 4h4v2h-4v-2z" fill="#0f172a"/> 
-                </svg>
-                <div class="logo-text">MyFileSeal</div>
-            </div>
+            <a href="/">
+                <img src="/logo.jpg" alt="MyFileSeal Logo" class="site-logo">
+            </a>
             <div class="subtitle">Secure Blockchain Timestamping Service</div>
         </div>
 
@@ -184,35 +173,21 @@ const htmlTemplate = (content) => `
 
         <h2 class="section-title">Frequently Asked Questions</h2>
         <div class="grid">
-            <div class="info-box">
-                <h3>🔒 Do you store my files?</h3>
-                <p><strong>No. Never.</strong> We only process the cryptographic hash. Your original file content remains private and secure on your device.</p>
-            </div>
-            <div class="info-box">
-                <h3>⚖️ Is this legally binding?</h3>
-                <p>It acts as strong "Proof of Existence" (PoE). It technically proves that a specific file existed at a specific point in time.</p>
-            </div>
-            <div class="info-box">
-                <h3>💰 Why is it free?</h3>
-                <p>We are currently in Beta. We cover the small Polygon network gas fees to help users experience blockchain security.</p>
-            </div>
-            <div class="info-box">
-                <h3>✏️ Can I edit the file?</h3>
-                <p>No. Changing even a single pixel or comma will change the Hash, breaking the proof. Keep your original file safe.</p>
-            </div>
-            <div class="info-box">
-                <h3>👤 Do I need an account?</h3>
-                <p>No. We believe in privacy and simplicity. You can seal your documents instantly without any sign-up or login.</p>
-            </div>
-            <div class="info-box">
-                <h3>⏳ How long is the proof valid?</h3>
-                <p><strong>Forever.</strong> The Polygon Blockchain is immutable. Even if this website disappears, your proof remains on the blockchain eternally.</p>
-            </div>
+            <div class="info-box"><h3>🔒 Do you store my files?</h3><p><strong>No. Never.</strong> We only process the cryptographic hash. Your original file content remains private and secure on your device.</p></div>
+            <div class="info-box"><h3>⚖️ Is this legally binding?</h3><p>It acts as strong "Proof of Existence" (PoE). It technically proves that a specific file existed at a specific point in time.</p></div>
+            <div class="info-box"><h3>💰 Why is it free?</h3><p>We are currently in Beta. We cover the small Polygon network gas fees to help users experience blockchain security.</p></div>
+            <div class="info-box"><h3>✏️ Can I edit the file?</h3><p>No. Changing even a single pixel or comma will change the Hash, breaking the proof. Keep your original file safe.</p></div>
+            <div class="info-box"><h3>👤 Do I need an account?</h3><p>No. We believe in privacy and simplicity. You can seal your documents instantly without any sign-up or login.</p></div>
+            <div class="info-box"><h3>⏳ How long is the proof valid?</h3><p><strong>Forever.</strong> The Polygon Blockchain is immutable. Even if this website disappears, your proof remains on the blockchain eternally.</p></div>
         </div>
 
         <footer>
             &copy; 2025 MyFileSeal. All rights reserved.<br>
             <span style="opacity:0.5; font-size:0.8rem">Powered by Polygon Network & Node.js</span>
+            <div style="margin-top:1rem;">
+                <a href="https://twitter.com/MyFileSeal" target="_blank" style="margin:0 10px;">Twitter (X)</a> | 
+                <a href="#" style="margin:0 10px;">LinkedIn</a>
+            </div>
         </footer>
     </div>
 </body>
@@ -253,23 +228,17 @@ app.post('/seal', upload.single('document'), async (req, res) => {
                     <h2 style="margin-bottom:0.5rem">Your File is Sealed Forever!</h2>
                     <p style="color:var(--text-muted); margin-bottom:2rem">The digital fingerprint has been permanently recorded.</p>
                 </div>
-                
                 <label style="font-weight:bold; color:var(--primary); font-size:0.8rem; letter-spacing:1px;">DIGITAL FINGERPRINT (HASH)</label>
                 <div class="hash-display">${hash}</div>
-
                 <div style="display:grid; gap:1rem; margin-top:2rem;">
                     <a href="${pdfLink}" target="_blank" style="text-decoration:none">
                         <button class="cta" style="background: #f59e0b; margin-top:0;">📄 Download Premium Certificate (PDF)</button>
                     </a>
-                    
                     <a href="${scanUrl}" target="_blank" style="text-decoration:none">
                         <button class="cta" style="background:var(--card); border:1px solid var(--border); margin-top:0;">🔗 Verify on PolygonScan</button>
                     </a>
                 </div>
-                
-                <div style="text-align:center; margin-top:2rem">
-                    <a href="/" style="color:var(--text-muted)">← Seal Another File</a>
-                </div>
+                <div style="text-align:center; margin-top:2rem"><a href="/" style="color:var(--text-muted)">← Seal Another File</a></div>
             </div>
         `));
     } catch (error) {
@@ -279,97 +248,7 @@ app.post('/seal', upload.single('document'), async (req, res) => {
     }
 });
 
-// --- ADMIN PANELİ (Kompakt) ---
-app.get('/admin', checkAuth, async (req, res) => {
-    try {
-        const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
-        const balanceWei = await provider.getBalance(WALLET_ADDRESS);
-        const balance = ethers.formatEther(balanceWei);
-
-        const apiUrl = `https://api.etherscan.io/v2/api?chainid=137&module=account&action=txlist&address=${WALLET_ADDRESS}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
-        const response = await axios.get(apiUrl);
-        const transactions = response.data.result;
-
-        let tableRows = '';
-        if (Array.isArray(transactions)) {
-            transactions.forEach(tx => {
-                if(tx.from.toLowerCase() === WALLET_ADDRESS.toLowerCase()) {
-                    const date = new Date(tx.timeStamp * 1000).toLocaleString('tr-TR');
-                    const gasCost = ethers.formatEther(BigInt(tx.gasUsed) * BigInt(tx.gasPrice));
-                    const status = tx.isError === '0' ? '<span style="color:#34d399">Success</span>' : '<span style="color:red">Fail</span>';
-                    tableRows += `<tr><td>${date}</td><td><a href="https://polygonscan.com/tx/${tx.hash}" target="_blank" style="color:#3b82f6">View</a></td><td>${status}</td><td>${parseFloat(gasCost).toFixed(6)}</td></tr>`;
-                }
-            });
-        }
-
-        res.send(`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>CEO Dashboard</title>
-                <style>
-                    body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; padding: 0; margin:0; display:flex; justify-content:center; }
-                    .container { width: 100%; max-width: 850px; margin-top: 50px; padding: 20px; }
-                    h1 { color: #3b82f6; margin-bottom:0.5rem; text-align:center; }
-                    .subtitle { color: #94a3b8; margin-bottom: 2rem; padding-bottom: 1rem; text-align:center; font-size:0.9rem; }
-                    .card { background: #1e293b; padding: 1.5rem; border-radius: 1rem; margin-bottom: 1.5rem; border: 1px solid #334155; }
-                    .balance { font-size: 2.5rem; font-weight: 800; margin: 0; text-align:center; }
-                    .wallet-address { font-family:monospace; color:#64748b; font-size:0.8rem; text-align:center; display:block; margin-top:5px; word-break:break-all; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 0.9rem; }
-                    th { text-align: left; padding: 0.8rem; border-bottom: 2px solid #334155; color: #94a3b8; text-transform: uppercase; font-size: 0.75rem; }
-                    td { padding: 0.8rem; border-bottom: 1px solid #334155; }
-                    tr:last-child td { border-bottom: none; }
-                    tr:hover { background: #334155; }
-                    .btn-back { display:block; margin-top:2rem; color:#64748b; text-decoration:none; text-align:center; font-size:0.9rem; }
-                    .btn-back:hover { color:#fff; }
-                    .analytics-link { text-align:center; margin-top:10px; display:block; color:#3b82f6; font-size:0.9rem; text-decoration:none; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>🚀 CEO Dashboard</h1>
-                    <div class="subtitle">Operations Center</div>
-                    
-                    <div class="card">
-                        <div style="text-align:center; color:#94a3b8; font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px;">Current Capital</div>
-                        <div class="balance">${parseFloat(balance).toFixed(4)} <span style="font-size:1.2rem; color:#3b82f6">POL</span></div>
-                        <span class="wallet-address">${WALLET_ADDRESS}</span>
-                    </div>
-
-                    <div class="card" style="text-align:center;">
-                        <h3 style="margin-top:0; color:#e2e8f0;">📊 Traffic Reports</h3>
-                        <a href="https://analytics.google.com/" target="_blank" class="analytics-link">Open Google Analytics Dashboard ↗</a>
-                    </div>
-
-                    <div class="card">
-                        <h3 style="margin-top:0; margin-bottom:1rem; color:#e2e8f0; font-size:1.1rem;">📜 Recent Activity</h3>
-                        <div style="overflow-x:auto;">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Transaction</th>
-                                        <th>Status</th>
-                                        <th>Cost (POL)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${tableRows}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <a href="/" class="btn-back">← Return to Public Site</a>
-                </div>
-            </body>
-            </html>
-        `);
-    } catch (error) { res.send(`Error: ${error.message}`); }
-});
-
-// --- PDF SERTİFİKA ---
+// --- PDF SERTİFİKA (LOGO EKLENDİ) ---
 app.get('/certificate', (req, res) => {
     const { hash, tx, name } = req.query;
     if(!hash || !tx) return res.send("Missing data.");
@@ -379,16 +258,25 @@ app.get('/certificate', (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=Certificate.pdf`);
     doc.pipe(res);
 
+    // LOGO EKLEME (Sayfanın Tepesine, Ortaya)
+    // Logo dosyasının public/logo.jpg yolunda olduğunu varsayıyoruz
+    const logoPath = path.join(__dirname, 'public', 'logo.jpg');
+    if (fs.existsSync(logoPath)) {
+        doc.image(logoPath, 245, 40, { width: 100 }); // X=245 (Ortalamak için), Y=40
+    }
+
+    // Başlık ve Çerçeveler
     doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); 
     doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); 
 
-    doc.moveDown(2);
+    doc.moveDown(6); // Logo için biraz boşluk bırak
     doc.font('Helvetica-Bold').fontSize(30).fillColor('#1a1a1a').text('CERTIFICATE', { align: 'center' });
     doc.fontSize(12).fillColor('#C5A059').text('OF BLOCKCHAIN TIMESTAMP', { align: 'center', characterSpacing: 2 });
+    
     doc.moveDown(2);
     doc.fontSize(12).font('Helvetica').fillColor('#444444').text('This certifies that the digital asset identified below has been permanently anchored to the Polygon Mainnet Blockchain, providing immutable proof of existence at the recorded date.', 97, doc.y, { align: 'center', width: 400 });
+    
     doc.moveDown(3);
-
     const startY = doc.y;
     doc.rect(50, startY, 495, 160).fillOpacity(0.05).fill('#3b82f6');
     doc.fillOpacity(1);
@@ -424,6 +312,30 @@ app.get('/certificate', (req, res) => {
 
     doc.fontSize(9).fillColor('grey').text('Powered by MyFileSeal.com - Immutable Proof on Polygon Network', 0, 760, { align: 'center', width: 595 });
     doc.end();
+});
+
+// --- ADMIN PANELİ (Kompakt) ---
+app.get('/admin', checkAuth, async (req, res) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
+        const balanceWei = await provider.getBalance(WALLET_ADDRESS);
+        const balance = ethers.formatEther(balanceWei);
+        const apiUrl = `https://api.etherscan.io/v2/api?chainid=137&module=account&action=txlist&address=${WALLET_ADDRESS}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+        const response = await axios.get(apiUrl);
+        const transactions = response.data.result;
+        let tableRows = '';
+        if (Array.isArray(transactions)) {
+            transactions.forEach(tx => {
+                if(tx.from.toLowerCase() === WALLET_ADDRESS.toLowerCase()) {
+                    const date = new Date(tx.timeStamp * 1000).toLocaleString('tr-TR');
+                    const gasCost = ethers.formatEther(BigInt(tx.gasUsed) * BigInt(tx.gasPrice));
+                    const status = tx.isError === '0' ? '<span style="color:#34d399">Success</span>' : '<span style="color:red">Fail</span>';
+                    tableRows += `<tr><td>${date}</td><td><a href="https://polygonscan.com/tx/${tx.hash}" target="_blank" style="color:#3b82f6">View</a></td><td>${status}</td><td>${parseFloat(gasCost).toFixed(6)}</td></tr>`;
+                }
+            });
+        }
+        res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>CEO Dashboard</title><style>body{background:#0f172a;color:#f8fafc;font-family:'Segoe UI',sans-serif;padding:0;margin:0;display:flex;justify-content:center}.container{width:100%;max-width:850px;margin-top:50px;padding:20px}h1{color:#3b82f6;margin-bottom:0.5rem;text-align:center}.card{background:#1e293b;padding:1.5rem;border-radius:1rem;margin-bottom:1.5rem;border:1px solid #334155}.balance{font-size:2.5rem;font-weight:800;margin:0;text-align:center}.wallet-address{font-family:monospace;color:#64748b;font-size:0.8rem;text-align:center;display:block;margin-top:5px;word-break:break-all}table{width:100%;border-collapse:collapse;margin-top:0;font-size:0.9rem}th{text-align:left;padding:0.8rem;border-bottom:2px solid #334155;color:#94a3b8;text-transform:uppercase;font-size:0.75rem}td{padding:0.8rem;border-bottom:1px solid #334155}tr:hover{background:#334155}.btn-back{display:block;margin-top:2rem;color:#64748b;text-decoration:none;text-align:center;font-size:0.9rem}.analytics-link{text-align:center;margin-top:10px;display:block;color:#3b82f6;font-size:0.9rem;text-decoration:none}</style></head><body><div class="container"><h1>🚀 CEO Dashboard</h1><div class="card"><div style="text-align:center;color:#94a3b8;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Current Capital</div><div class="balance">${parseFloat(balance).toFixed(4)} <span style="font-size:1.2rem;color:#3b82f6">POL</span></div><span class="wallet-address">${WALLET_ADDRESS}</span></div><div class="card" style="text-align:center"><h3 style="margin-top:0;color:#e2e8f0">📊 Traffic Reports</h3><a href="https://analytics.google.com/" target="_blank" class="analytics-link">Open Google Analytics Dashboard ↗</a></div><div class="card"><h3 style="margin-top:0;margin-bottom:1rem;color:#e2e8f0;font-size:1.1rem">📜 Recent Activity</h3><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Transaction</th><th>Status</th><th>Cost (POL)</th></tr></thead><tbody>${tableRows}</tbody></table></div></div><a href="/" class="btn-back">← Return to Public Site</a></div></body></html>`);
+    } catch (error) { res.send(`Error: ${error.message}`); }
 });
 
 app.listen(PORT, () => {
