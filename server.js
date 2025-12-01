@@ -86,9 +86,9 @@ const htmlTemplate = (content) => `
         .spinner { width: 60px; height: 60px; border: 6px solid var(--border); border-top: 6px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1.5rem; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* LOGO STYLE (Banner Uyumlu) */
-        .navbar { display: flex; justify-content: center; align-items: center; padding: 2rem 0 3rem 0; flex-direction: column; }
-        .site-logo { width: 350px; max-width: 100%; height: auto; margin-bottom: 0.5rem; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.2)); }
+        /* LOGO STYLE (Geniş Banner ve Yuvarlak Köşe) */
+        .navbar { display: flex; justify-content: center; align-items: center; padding: 2rem 0 2rem 0; flex-direction: column; }
+        .site-logo { width: 100%; max-width: 850px; height: auto; margin-bottom: 1rem; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.25)); border-radius: 1rem; }
         
         .card { background: var(--card); padding: 3rem; border-radius: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid var(--border); text-align: center; margin-bottom: 4rem; }
         .upload-area { border: 2px dashed var(--border); border-radius: 1rem; padding: 3rem; transition: 0.3s; cursor: pointer; position: relative; background: rgba(15, 23, 42, 0.3); }
@@ -149,7 +149,7 @@ const htmlTemplate = (content) => `
             <a href="/">
                 <img src="/logo.jpg" alt="MyFileSeal" class="site-logo">
             </a>
-            </div>
+        </div>
 
         ${content}
 
@@ -270,7 +270,7 @@ app.get('/admin', checkAuth, async (req, res) => {
     } catch (error) { res.send(`Error: ${error.message}`); }
 });
 
-// --- PDF SERTİFİKA (TEPE LOGO YOK, ALTTA MİNİLOGO) ---
+// --- PDF SERTİFİKA (DÜZELTİLDİ: Mini Logo Boyut ve Konum) ---
 app.get('/certificate', (req, res) => {
     const { hash, tx, name } = req.query;
     if(!hash || !tx) return res.send("Missing data.");
@@ -284,7 +284,7 @@ app.get('/certificate', (req, res) => {
     doc.rect(20, 20, 555, 780).lineWidth(3).strokeColor('#C5A059').stroke(); 
     doc.rect(25, 25, 545, 770).lineWidth(1).strokeColor('#000000').stroke(); 
 
-    // Tepe Logo İPTAL EDİLDİ - Sadece Metin
+    // Başlık
     doc.moveDown(3);
     doc.font('Helvetica-Bold').fontSize(30).fillColor('#1a1a1a').text('CERTIFICATE', { align: 'center' });
     doc.fontSize(12).fillColor('#C5A059').text('OF BLOCKCHAIN TIMESTAMP', { align: 'center', characterSpacing: 2 });
@@ -311,7 +311,7 @@ app.get('/certificate', (req, res) => {
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#000').text('TRANSACTION ID (TX):', 50);
     doc.fontSize(9).fillColor('#3b82f6').text(tx, { link: `https://polygonscan.com/tx/${tx}`, underline: true });
 
-    // --- ALT KISIM ---
+    // --- ALT KISIM (REVİZE EDİLDİ) ---
     const sealY = 660;
     
     // Sol: Mühür
@@ -321,11 +321,11 @@ app.get('/certificate', (req, res) => {
     doc.text('VERIFIED', 75, sealY + 38);
     doc.fontSize(8).text('SECURE', 83, sealY + 52);
 
-    // ORTA: minilogo.jpg (Text yerine görsel)
+    // ORTA: minilogo.jpg (Küçültüldü ve Hizalandı)
     const miniLogoPath = path.join(__dirname, 'public', 'minilogo.jpg');
     if (fs.existsSync(miniLogoPath)) {
-        // Logoyu ortala: X=250, Y=sealY+10 civarı
-        doc.image(miniLogoPath, 250, sealY + 10, { width: 120 });
+        // Width: 80 (QR ile aynı), Konum: sealY hizasında, ortalanmış (X=260)
+        doc.image(miniLogoPath, 260, sealY, { width: 80 });
     }
 
     // Sağ: QR Kod
